@@ -1,4 +1,4 @@
-<h1 align="center"> VitePress @sugarat/theme </h1>
+<h1 align="center"> VitePress @sugarat/theme 测试测试</h1>
 
 <p align="center">
 简约风的 <a href="https://theme.sugarat.top"  target="_blank"target="_blank">VitePress 博客主题</a> 示例运行项目。
