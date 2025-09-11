@@ -1,4 +1,12 @@
- # Babel 是如何将新的 JavaScript 语法转换为向后兼容的代码，以及它如何处理 Polyfill？
+---
+title: 一些杂记
+categories:
+  - 前端技术
+---
+
+
+
+# Babel 是如何将新的 JavaScript 语法转换为向后兼容的代码，以及它如何处理 Polyfill？
 
  源代码 → 解析(Parse) → 转换(Transform) → 生成(Generate) → 目标代码
  ```

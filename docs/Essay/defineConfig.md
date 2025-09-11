@@ -1,3 +1,12 @@
+---
+title: defineConfig的用处是什么
+tags:
+  - Essay
+categories:
+  - 前端技术
+description: 详解 VitePress 中 defineConfig 函数的作用和使用场景
+---
+
 # defineConfig的用处是什么
 
 ```
@@ -53,6 +62,7 @@ export default defineConfig({
 ```
 
 不使用 defineConfig（不推荐）
+
 ```
 // ❌ 没有类型支持
 export default {
