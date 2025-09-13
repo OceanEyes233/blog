@@ -1,5 +1,15 @@
 {
-    "headers": [
+  "rewrites": [
+    {
+      "source": "/blog/(.*)",
+      "destination": "/$1"
+    },
+    {
+      "source": "/blog",
+      "destination": "/index.html"
+    }
+  ],  
+  "headers": [
       {
         "source": "/assets/(.*)",
         "headers": [

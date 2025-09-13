@@ -21,7 +21,12 @@ export default defineConfig({
   // 详见：https://vitepress.dev/zh/reference/site-config#head
   head: [
     // 配置网站的图标（显示在浏览器的 tab 上）
-    ['link', { rel: 'icon', href: `${base}favicon.ico` }]
+    ['link', { rel: 'icon', href: `${base}favicon.ico` }],
+    ['script', { 
+      defer: '', 
+      'data-domain': 'your-domain.vercel.app', // 替换为您的域名
+      src: 'https://va.vercel-scripts.com/v1/script.debug.js' 
+    }]
   ],
   themeConfig: {
     // 展示 2,3 级标题在目录中
