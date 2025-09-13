@@ -24,7 +24,7 @@ export default defineConfig({
     ['link', { rel: 'icon', href: `${base}favicon.ico` }],
     ['script', { 
       defer: '', 
-      'data-domain': 'your-domain.vercel.app', // 替换为您的域名
+      'data-domain': 'oceaneyes233.vercel.app', // 替换为您的域名
       src: 'https://va.vercel-scripts.com/v1/script.debug.js' 
     }]
   ],
