@@ -25,7 +25,7 @@ export default defineConfig({
     ['script', { 
       defer: '', 
       'data-domain': 'oceaneyes233.vercel.app', // 替换为您的域名
-      src: 'https://va.vercel-scripts.com/v1/script.debug.js' 
+      src: 'https://va.vercel-scripts.com/v1/script.js' 
     }]
   ],
   themeConfig: {
