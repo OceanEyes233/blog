@@ -15,8 +15,8 @@ export default defineConfig({
   extends: blogTheme,
   base,
   lang: 'zh-cn',
-  title: 'Ciri稀饭饭的博客',
-  description: 'Ciri稀饭饭的博客，基于 vitepress 实现',
+  title: '心田雨路',
+  description: '心田雨路的博客，基于 vitepress 实现',
   lastUpdated: true,
   // 详见：https://vitepress.dev/zh/reference/site-config#head
   head: [
