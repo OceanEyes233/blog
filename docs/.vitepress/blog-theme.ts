@@ -46,7 +46,7 @@ const blogTheme = getThemeConfig({
   themeColor: 'el-blue',
 
   // 文章默认作者
-  author: 'Ciri稀饭饭',
+  author: '心田雨路',
 
   // 友链
   // friend: [
