@@ -84,3 +84,10 @@ app.post('/rpc/system/ping', zValidator('json', PingRequestSchema), (c) => {
   const payload = c.req.valid('json') // 把通过检验的数据取出来 取出来的数据就是 PingRequestSchema里面的变量
   ...
 })
+
+PingRequestSchema:
+
+```
+export const PingRequestSchema = z.object({
+  name: z.string().trim().min(1),
+})
