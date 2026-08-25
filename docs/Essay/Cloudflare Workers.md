@@ -99,23 +99,64 @@ wrangler deploy
 
 wrangler dev 会在本地启动一个模拟 Workers 运行时的开发服务器，支持热更新。本地开发时也能访问 KV、D1、R2 等服务的本地模拟版本。
 
-项目配置写在 wrangler.toml（或 wrangler.jsonc）里：
-```bash
-name = "my-worker"
-main = "src/index.ts"
-compatibility_date = "2024-01-01"
+项目配置写在 wrangler.toml（或 wrangler.jsonc）里：【这里只使用了KV】
 
-# 绑定 KV namespace
-[[kv_namespaces]]
-binding = "MY_KV"
-id = "xxxxxxxxxxxxxxxxxxxx"
-
-# 绑定 D1 数据库
-[[d1_databases]]
-binding = "DB"
-database_name = "my-database"
-database_id = "xxxxxxxxxxxxxxxxxxxx"
 ```
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "<ENTER_WORKER_NAME>",
+	"main": "src/index.ts",
+	"compatibility_date": "2025-02-04",
+	"observability": {
+		"enabled": true
+	},
+
+	"kv_namespaces": [
+		{
+			"binding": "KV",
+			"id": "<YOUR_BINDING_ID>"
+		}
+	]
+}
+```
+
+使用:
+```
+export interface Env {
+  USERS_NOTIFICATION_CONFIG: KVNamespace;
+}
+
+export default {
+  async fetch(request, env, ctx): Promise<Response> {
+    try {
+      await env.USERS_NOTIFICATION_CONFIG.put("user_2", "disabled");
+      const value = await env.USERS_NOTIFICATION_CONFIG.get("user_2");
+      if (value === null) {
+        return new Response("Value not found", { status: 404 });
+      }
+      return new Response(value);
+    } catch (err) {
+      console.error(`KV returned error:`, err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "An unknown error occurred when accessing KV storage";
+      return new Response(errorMessage, {
+        status: 500,
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+  },
+} satisfies ExportedHandler<Env>;
+```
+
+```
+npm run kv:sync 同步远程数据到本地
+npx wrangler dev 启动本地服务
+npm run deploy 将 KV 部署到 Cloudflare 的全球网络
+```
+
+
 
 # 需要注意的限制
 
