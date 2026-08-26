@@ -5,7 +5,7 @@ tags:
   - Serverless
   - Edge Computing
 categories:
-  - 前端技术
+  - 服务端
 description: 简单介绍 Cloudflare Workers 是什么、能做什么，以及一个最小可运行示例
 ---
 
@@ -101,7 +101,7 @@ wrangler dev 会在本地启动一个模拟 Workers 运行时的开发服务器�
 
 项目配置写在 wrangler.toml（或 wrangler.jsonc）里：【这里只使用了KV】
 
-```
+```json
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "<ENTER_WORKER_NAME>",
@@ -121,7 +121,7 @@ wrangler dev 会在本地启动一个模拟 Workers 运行时的开发服务器�
 ```
 
 使用:
-```
+```ts
 export interface Env {
   USERS_NOTIFICATION_CONFIG: KVNamespace;
 }
@@ -150,13 +150,11 @@ export default {
 } satisfies ExportedHandler<Env>;
 ```
 
-```
+```bash
 npm run kv:sync 同步远程数据到本地
 npx wrangler dev 启动本地服务
 npm run deploy 将 KV 部署到 Cloudflare 的全球网络
 ```
-
-
 
 # 需要注意的限制
 
@@ -171,3 +169,134 @@ Workers 不是完整 Node.js 环境，以下差异需要留意：
 # 小结
 
 Cloudflare Workers 把 Serverless 推到了 CDN 边缘：写一段标准 Web 风格的 JS/TS，部署后全球可用。如果你已经在用 Cloudflare 做 DNS/CDN，或者需要极低延迟的轻量 API，Workers 是值得尝试的方案。
+
+# 补充
+## 关系型数据库 vs 非关系型数据库
+
+KV是非关系型数据库，D1是关系型数据库
+
+关系型数据库的核心能力就是这些：
+
+结构化：每张表有固定的列，每条数据都遵循同样的结构
+SQL 查询：可以按任意字段筛选、排序、聚合、分组
+表关联：通过外键把多张表串起来，联合查询
+约束：唯一性、非空、外键约束，数据库帮你守规矩
+常见的关系型数据库有 MySQL、PostgreSQL、SQLite。
+
+非关系型数据库
+非关系型数据库（NoSQL）不按表格来组织数据，根据存储方式的不同又分好几类 KV 就是其中一种：
+
+键值存储（Key-Value）：一个 key 对应一个 value，就像一个巨大的 Map。Cloudflare KV、Redis 都属于这类
+文档数据库（Document）：存的是 JSON 文档，每条数据的结构可以不一样。MongoDB 是典型代表
+列族存储、图数据库……还有其他类型，这里不展开
+非关系型数据库的共同特点是：灵活，但查询能力有限。不能写 SQL，不能跨表联查，很多事情得靠应用层代码自己实现。
+
+```
+wrangler d1 create my-db
+```
+
+配置wrangler.jsonc
+
+```json
+{
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "my-db",
+      "database_id": "xxxx-xxxx-xxxx-xxxx"
+    }
+  ]
+}
+```
+
+binding = "DB" 表示在代码里通过 c.env.DB 访问这个数据库。
+
+在 Hono 里使用 D1，需要声明 Bindings 类型：
+```ts
+import { Hono } from 'hono'
+
+type Bindings = {
+  DB: D1Database
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+```
+
+D1 用迁移文件管理表结构，不要手动建表。
+
+创建迁移文件
+```
+wrangler d1 migrations create my-db init
+```
+
+# 语法
+
+**查询所有记录**
+
+```ts
+const { results } = await c.env.DB
+  .prepare('SELECT * FROM users')
+  .all()
+```
+
+**查询单条记录**
+
+```ts
+const user = await c.env.DB
+  .prepare('SELECT * FROM users WHERE id = ?')
+  .bind(id)
+  .first()
+```
+
+**插入记录**
+
+```ts
+await c.env.DB
+  .prepare('INSERT INTO users (name, email) VALUES (?, ?)')
+  .bind(name, email)
+  .run()
+```
+**更新记录**
+
+```ts
+await c.env.DB
+  .prepare('UPDATE users SET name = ?, email = ? WHERE id = ?')
+  .bind(name, email, id)
+  .run()
+```
+**删除记录**
+
+```ts
+await c.env.DB
+  .prepare('DELETE FROM users WHERE id = ?')
+  .bind(id)
+  .run()
+```
+
+.prepare() 写 SQL，用 ? 做参数占位符
+.bind() 绑定参数，防 SQL 注入
+.all() 返回多条，.first() 返回一条，.run() 不返回数据
+
+**批量执行（事务）**
+```ts
+const results = await c.env.DB.batch([
+  c.env.DB.prepare('INSERT INTO users (name, email) VALUES (?, ?)').bind('Alice', 'alice@example.com'),
+  c.env.DB.prepare('INSERT INTO users (name, email) VALUES (?, ?)').bind('Bob', 'bob@example.com'),
+  c.env.DB.prepare('INSERT INTO users (name, email) VALUES (?, ?)').bind('Charlie', 'charlie@example.com'),
+])
+```
+batch() 里的语句会在同一个**事务**中执行，要么全成功，要么全失败。
+
+# D1的限制
+用之前要知道这些限制：
+
+**数据库大小**：免费版单个数据库最大 500MB，账号总量 5GB；付费版单库最大 10GB，账号总量 1TB
+**写入性能**：写操作需要同步到主节点，延迟比读高。写密集场景不适合 D1
+**不支持事务嵌套**：batch() 是一个事务，但不能在事务里再开事务
+**SQLite 语法**：不是 MySQL 也不是 PostgreSQL，部分语法有差异（比如一些仅限于 MySQL/PostgreSQL 的特有函数和索引写法）
+**单次查询限制**：单条 SQL 最多返回 5MB 数据
+
+对于大部分 Web 应用来说，这些限制不是问题。D1 就是为轻量级、读多写少的场景设计的。
+
+
+
