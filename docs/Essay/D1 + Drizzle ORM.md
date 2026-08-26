@@ -175,7 +175,7 @@ await db.delete(users)
 ```ts
 import * as schema from './db/schema'
 
-const db = drizzle(c.env.DB, { schema })
+const db = drizzle(c.env.DB, { schema })  // 简单点理解 就是把数据库用drizzle包一层 传入schema就不需要每次都要传入 某个schema
 
 // 查询用户及其所有文章
 const usersWithPosts = await db.query.users.findMany({
