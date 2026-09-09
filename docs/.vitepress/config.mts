@@ -50,11 +50,11 @@ export default defineConfig({
       { text: '首页', link: '/' },
       // { text: '关于作者', link: 'https://sugarat.top/aboutme.html' }
     ],
-    // socialLinks: [
-    //   {
-    //     icon: 'github',
-    //     link: 'https://github.com/ATQQ/sugar-blog/tree/master/packages/theme'
-    //   }
-    // ]
+    socialLinks: [
+      {
+        icon: 'github',
+        link: 'https://github.com/OceanEyes233/blog'
+      }
+    ]
   }
 })
