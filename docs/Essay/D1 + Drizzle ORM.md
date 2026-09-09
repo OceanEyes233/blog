@@ -109,7 +109,7 @@ type NewPost = InferInsertModel<typeof posts>
 
 ## 2. 连接数据库并查询
 
-以 Cloudflare D1 为例（其他驱动用法类似，只是 `drizzle()` 的传参不同）：
+以 Cloudflare D1 为例：
 
 ```js
 import { Hono } from 'hono'

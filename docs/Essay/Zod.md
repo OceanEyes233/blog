@@ -1,5 +1,5 @@
 ---
-title: Zod 介绍
+title: Zod + zod-validator介绍
 tags:
   - Typescript
 categories:
@@ -40,7 +40,7 @@ console.log(data.name);
 
 # 定义模式
 
-```
+```js
 import * as z from "zod"; 
  
 const Player = z.object({ 
@@ -54,13 +54,13 @@ console.log(res)
 
 let err = Player.safeParse({ username: "billie", xp: '111' })
 console.log(res) 
-// { error: ZodError
-success: false }
+// { error: ZodError, success: false }
+
 ```
 
 # 推断类型
 
-```
+```js
 const Player = z.object({ 
   username: z.string(),
   xp: z.number()
@@ -77,17 +77,75 @@ const player: Player = { username: "billie", xp: 100 };
 
 hono/validator 是 Hono 内置的通用校验中间件，@hono/zod-validator 是 Hono 官方的 Zod 集成，把 Zod schema 变成路由中间件。
 
+PingRequestSchema:
+
+```js
+export const PingRequestSchema = z.object({
+  page: z.coerce.number().int().positive().default(1), // 查询参数从 URL 解析出来本来都是字符串，这里用 z.coerce.number() 的意思是“先接收字符串，再自动帮你转成 number”。
+  limit: z.coerce.number().int().positive().default(10),
+})
 ```
+
+zValidator 的第一个参数指定校验哪里的数据，
+第二个参数指定校验Schema
+
+```js
 import { zValidator } from '@hono/zod-validator'
 
 app.post('/rpc/system/ping', zValidator('json', PingRequestSchema), (c) => {
   const payload = c.req.valid('json') // 把通过检验的数据取出来 取出来的数据就是 PingRequestSchema里面的变量
-  ...
+  console.log(payload.page)
 })
-
-PingRequestSchema:
-
 ```
-export const PingRequestSchema = z.object({
-  name: z.string().trim().min(1),
+
+zValidator 的第三个参数是一个 hook 函数，让你自定义错误响应
+```js
+app.post(
+  '/users',
+  zValidator('json', createUserSchema, (result, c) => {
+    if (!result.success) {
+      return c.json(
+        {
+          code: 'VALIDATION_ERROR',
+          errors: result.error.flatten().fieldErrors,
+        },
+        400
+      )
+    }
+  }),
+  (c) => {
+    const data = c.req.valid('json')
+    return c.json({ id: 1, ...data }, 201)
+  }
+)
+```
+
+**组合多个校验器**
+
+```js
+const paramSchema = z.object({
+  id: z.string().regex(/^\d+$/),
 })
+
+const bodySchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+})
+
+const headerSchema = z.object({
+  'x-api-key': z.string().min(1),
+})
+
+app.put(
+  '/users/:id',
+  zValidator('param', paramSchema),
+  zValidator('json', bodySchema),
+  zValidator('header', headerSchema),
+  (c) => {
+    const { id } = c.req.valid('param')
+    const body = c.req.valid('json')
+    // 三个位置的数据都校验通过，类型都自动推导
+    return c.json({ id, ...body })
+  }
+)
+```

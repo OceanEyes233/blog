@@ -298,5 +298,285 @@ batch() 里的语句会在同一个**事务**中执行，要么全成功，要�
 
 对于大部分 Web 应用来说，这些限制不是问题。D1 就是为轻量级、读多写少的场景设计的。
 
+# R2
+
+文件和数据库里的数据有本质区别：
+
+体积大：一张图片几百 KB 到几 MB，一个视频可能几百 MB。数据库存这些东西效率很低
+不需要查询内部内容：你不会"查出所有宽度大于 1920px 的图片"，你只会"按文件名取出这张图"
+需要直接下载：浏览器要直接拿到图片的二进制数据来渲染，不是拿一段 JSON
+所以需要一种专门存文件的方案，这就是对象存储（Object Storage）。
+
+创建R2 Bucket
+
+```bash
+wrangler r2 bucket create my-bucket
+```
+
+```json
+{
+  "r2_buckets": [
+    {
+      "binding": "BUCKET",
+      "bucket_name": "my-bucket"
+    }
+  ]
+}
+```
+
+然后给 Hono 加上类型声明： 这样 c.env.BUCKET 就有完整的类型提示了。
+
+```js
+import { Hono } from 'hono'
+
+type Bindings = {
+  BUCKET: R2Bucket
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+```
+
+**实用场景**
+
+R2Bucket 提供四个核心方法，覆盖了对象存储的增删查：
+
+```js
+import { Hono } from 'hono'
+
+type Bindings = {
+  BUCKET: R2Bucket
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+// 用户头像上传
+app.post('/api/avatar', async (c) => {
+  const formData = await c.req.formData()
+  const file = formData.get('avatar') as File
+
+  if (!file.type.startsWith('image/')) {
+    return c.json({ error: 'Only images allowed' }, 400)
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    return c.json({ error: 'File too large, max 2MB' }, 400)
+  }
+
+  const key = `avatars/${crypto.randomUUID()}.${file.name.split('.').pop()}`
+  await c.env.BUCKET.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type },
+  })
+
+  return c.json({ avatarUrl: `/files/${key}` })
+})
+
+// AI 生成图片存储
+app.post('/api/ai-images', async (c) => {
+  const { imageBuffer, prompt } = await c.req.json()
+  const key = `ai-generated/${Date.now()}.png`
+
+  await c.env.BUCKET.put(key, Uint8Array.from(atob(imageBuffer), (c) => c.charCodeAt(0)), {
+    httpMetadata: { contentType: 'image/png' },
+    customMetadata: { prompt },
+  })
+
+  return c.json({ key })
+})
+
+// 文档附件
+app.post('/api/attachments', async (c) => {
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File
+
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'text/plain',
+  ]
+
+  if (!allowedTypes.includes(file.type)) {
+    return c.json({ error: 'File type not allowed' }, 400)
+  }
+
+  const key = `attachments/${Date.now()}-${file.name}`
+  await c.env.BUCKET.put(key, file.stream(), {
+    httpMetadata: { contentType: file.type },
+  })
+
+  return c.json({ key, filename: file.name })
+})
+
+export default app
+```
+
+前端代码:
+
+```js
+const API_BASE = 'https://your-worker.dev'
+
+// 1. 用户头像上传 — 对应 POST /api/avatar，字段名 avatar
+async function uploadAvatar(file) {
+  if (!file.type.startsWith('image/')) {
+    throw new Error('Only images allowed')
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error('File too large, max 2MB')
+  }
+
+  const formData = new FormData()
+  formData.append('avatar', file)
+
+  const res = await fetch(`${API_BASE}/api/avatar`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const { error } = await res.json()
+    throw new Error(error)
+  }
+
+  const { avatarUrl } = await res.json()
+  return avatarUrl // '/files/avatars/xxx.png'
+}
+
+// HTML: <input type="file" accept="image/*" id="avatarInput" />
+document.getElementById('avatarInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+
+  const avatarUrl = await uploadAvatar(file)
+  document.querySelector('#avatar').src = avatarUrl
+})
+
+// 2. AI 生成图片存储 — 对应 POST /api/ai-images，JSON  body
+async function saveAiImage(imageBlob, prompt) {
+  const buffer = await imageBlob.arrayBuffer()
+  const bytes = new Uint8Array(buffer)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  const base64 = btoa(binary)
+
+  const res = await fetch(`${API_BASE}/api/ai-images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ imageBuffer: base64, prompt }),
+  })
+
+  if (!res.ok) throw new Error('Upload failed')
+
+  const { key } = await res.json()
+  return key // 'ai-generated/1724567890123.png'
+}
+
+// 3. 文档附件上传 — 对应 POST /api/attachments，字段名 file
+async function uploadAttachment(file) {
+  const allowedTypes = [
+    'application/pdf',
+    'application/msword',
+    'text/plain',
+  ]
+
+  if (!allowedTypes.includes(file.type)) {
+    throw new Error('File type not allowed')
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${API_BASE}/api/attachments`, {
+    method: 'POST',
+    body: formData,
+  })
+
+  if (!res.ok) {
+    const { error } = await res.json()
+    throw new Error(error)
+  }
+
+  const { key, filename } = await res.json()
+  return { key, filename }
+}
+
+// HTML: <input type="file" accept=".pdf,.doc,.txt" id="fileInput" />
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+
+  const { key, filename } = await uploadAttachment(file)
+  console.log('文件已上传:', filename, key)
+})
+```
+
+**几个要点**
+
+put(key, body, options) 的 body 可以是 ArrayBuffer、ReadableStream、string 等
+get(key) 返回 R2ObjectBody | null，注意判空
+list() 支持分页，truncated 为 true 时用 cursor 获取下一页
+
+**预签名 URL**
+有时候你不想让文件流量经过 Worker，想让客户端直接从 R2 读写。这时候可以用预签名 URL。
+
+R2 兼容 S3 的预签名 URL 机制，需要用 @aws-sdk/s3-request-presigner：
+
+前端拿到预签名 URL 后，直接用 fetch PUT/GET 就行，不经过 Worker，减少延迟和带宽消耗。
 
 
+```js
+import { Hono } from 'hono'
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
+
+type Bindings = {
+  R2_ACCOUNT_ID: string
+  R2_ACCESS_KEY_ID: string
+  R2_SECRET_ACCESS_KEY: string
+}
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+const getS3Client = (env: Bindings) => {
+  return new S3Client({
+    region: 'auto',
+    endpoint: `https://${env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: {
+      accessKeyId: env.R2_ACCESS_KEY_ID,
+      secretAccessKey: env.R2_SECRET_ACCESS_KEY,
+    },
+  })
+}
+
+// 生成上传用的预签名 URL
+app.post('/presign/upload', async (c) => {
+  const { filename, contentType } = await c.req.json()
+  const key = `uploads/${Date.now()}-${filename}`
+
+  const client = getS3Client(c.env)
+  const command = new PutObjectCommand({
+    Bucket: 'my-bucket',
+    Key: key,
+    ContentType: contentType,
+  })
+
+  const url = await getSignedUrl(client, command, { expiresIn: 3600 })
+  return c.json({ url, key })
+})
+
+// 生成下载用的预签名 URL
+app.post('/presign/download', async (c) => {
+  const { key } = await c.req.json()
+
+  const client = getS3Client(c.env)
+  const command = new GetObjectCommand({
+    Bucket: 'my-bucket',
+    Key: key,
+  })
+
+  const url = await getSignedUrl(client, command, { expiresIn: 3600 })
+  return c.json({ url })
+})
+
+export default app
+```
