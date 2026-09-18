@@ -36,8 +36,11 @@ bun add langchain @langchain/core @langchain/deepseek zod
 
 简单说明一下这些包：
 langchain：核心包，提供 createAgent、tool、initChatModel 等高层 API
+
 @langchain/core：基础类型和工具类
+
 @langchain/deepseek：DeepSeek AI 模型集成（如果用其他模型，换成对应的包即可，比如 @langchain/openai）
+
 zod：Schema 验证库，定义工具输入参数
 
 **注意：之所以会有 langchain 和 @langchain/core 两个包，简而言之，就是当年 langchain 包越来越大，难以维持，于是做了拆分。**
@@ -123,7 +126,9 @@ tool 函数来自 langchain 包。它接收两个参数：一个函数（工具�
 配置对象中 3 个字段最重要：
 
 name：工具名称，模型通过它来识别和调用工具
+
 description：工具描述，这是模型决定是否使用该工具的关键依据——写清楚工具能做什么、什么时候该用
+
 schema：用 Zod 定义函数的输入参数，模型会根据它来生成正确的调用参数
 
 # invoke：运行 Agent
