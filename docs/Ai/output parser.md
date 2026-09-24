@@ -224,7 +224,7 @@ const stream = await model.stream(prompt);
 
 其实流式输出的情况下，如果你用了 tool call，是这样返回的
 
-![alt text](image.png)
+![alt text](images/image.png)
 
 tool_call_chunks 里保存了 tool 参数的部分内容，我们可以用这个来实现流式打印效果
 
